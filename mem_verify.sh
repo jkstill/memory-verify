@@ -208,8 +208,7 @@ MEMINFO
 	echo
 }
 
-#[ "$SGA" -gt "$HUGEPAGE_BYTES" ] && {
-[ "$SGA" -gt 1 ] && {
+[ "$SGA" -gt "$HUGEPAGE_BYTES" ] && {
 	echo "Warning: Configured SGA is larger than Configured HugePages"
 	RECSIZE=$(( SGA / HUGEPAGE_SIZE / 1024 ))
 	echo "  Set HugePages to $RECSIZE or more"
