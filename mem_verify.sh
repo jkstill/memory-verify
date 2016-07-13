@@ -68,28 +68,37 @@ unset ORAENV_ASK
 
 SGA=0
 
-for SID in $(grep -P '^[a-z]+\d{1}:' /etc/oratab | cut -f1 -d:)
+for SID in $(grep -P '^[A-Za-z0-9]+\d*:' /etc/oratab | cut -f1 -d:)
 do
 
-	. oraenv <<< $SID >/dev/null
+	# check to see if there is a corresponding active instance
+	isActive=$(ps -e -ocmd | grep "^[o]ra_pmon_${SID}$")
 
-	echo
-	TMPSGA=$(getOraParm 'sga_max_size')
 
-	(( SGA += TMPSGA ))
+	[[ -n $isActive ]] && {
 
-	ORASIDS[$IDX]=$SID
-	ESTIMATE_MEM[$IDX]=0
+		#echo "is Active: |$isActive|"
+		#echo "Working on $SID"
 
-	MEMORY_TARGET=$(getOraParm 'memory_target')
+		. oraenv <<< $SID >/dev/null
 
-	MEMORY_MAX_TARGET=$(getOraParm 'memory_max_target')
+		echo
+		TMPSGA=$(getOraParm 'sga_max_size')
 
-	[ "$MEMORY_TARGET" != '0' -o "$MEMORY_MAX_TARGET" != '0' ] && {
-		ESTIMATE_MEM[$IDX]=1  
+		(( SGA += TMPSGA ))
+
+		ORASIDS[$IDX]=$SID
+		ESTIMATE_MEM[$IDX]=0
+
+		MEMORY_TARGET=$(getOraParm 'memory_target')
+		MEMORY_MAX_TARGET=$(getOraParm 'memory_max_target')
+
+		[ "$MEMORY_TARGET" != '0' -o "$MEMORY_MAX_TARGET" != '0' ] && {
+			ESTIMATE_MEM[$IDX]=1  
+		}
+
+		(( IDX++ ))
 	}
-
-	(( IDX++ ))
 
 done
 
@@ -177,14 +186,14 @@ MEMINFO
 # is shmmax GT mem ?
 [ "$SHMMAX" -gt "$TOTALMEM" ] && {
 	echo "Warning: shmmax of $SHMMAX  > totalmem of $TOTALMEM"
-	echo "   Set shmmax to $TOTALMEM or less"
+	echo "   Set shmmax to $TOTALMEM or less in /etc/sysctl.conf"
 	echo
 }
 
 # is shmall GT mem ?
 [ "$SHMALL_BYTES" -gt "$TOTALMEM" ] && {
 	echo "Warning: shmall of $SHMALL ( $SHMALL_BYTES bytes )  > totalmem of $TOTALMEM"
-	echo "   Set shmall to" $(( TOTALMEM / PAGESIZE )) "or less"
+	echo "   Set shmall to" $(( TOTALMEM / PAGESIZE )) "or less in /etc/sysctl.conf"
 	echo
 }
 
