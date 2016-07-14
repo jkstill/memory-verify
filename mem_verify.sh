@@ -186,7 +186,7 @@ SGA <= memlock < available memory
 Oracle:
 
   granulesize: $GRANULESIZE
-			 SGA: $SGA
+          SGA: $SGA
 
 MEMINFO
 
