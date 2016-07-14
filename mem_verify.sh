@@ -10,12 +10,12 @@ function getOraValue() {
 #echo "SQL: $SQL" >&2
 
 	tmpResult=$(sqlplus -S /nolog <<-EOF
-   	connect / as sysdba
-   	set term on feed off head off  echo off verify off
+		connect / as sysdba
+		set term on feed off head off  echo off verify off
 		set timing off
-   	ttitle off
-   	btitle off
-   	$SQL;
+		ttitle off
+		btitle off
+		$SQL;
 	EOF
 	)
 
@@ -32,13 +32,13 @@ function getOraParm() {
 	#echo "!!!!" >&2
 
 	parmValue=$(getOraValue $SQL)
-	echo $parmValue	
+	echo $parmValue
 }
 
 function getGranuleSize() {
-   declare SQL="select granule_size from V_\$SGA_DYNAMIC_COMPONENTS where component = 'DEFAULT buffer cache'"
+	declare SQL="select granule_size from V_\$SGA_DYNAMIC_COMPONENTS where component = 'DEFAULT buffer cache'"
 	declare granuleSize=$(getOraValue $SQL)
-	echo $granuleSize	
+	echo $granuleSize
 }
 
 function getEstPGA() {
@@ -94,7 +94,7 @@ do
 		MEMORY_MAX_TARGET=$(getOraParm 'memory_max_target')
 
 		[ "$MEMORY_TARGET" != '0' -o "$MEMORY_MAX_TARGET" != '0' ] && {
-			ESTIMATE_MEM[$IDX]=1  
+			ESTIMATE_MEM[$IDX]=1
 		}
 
 		(( IDX++ ))
@@ -116,7 +116,7 @@ GRANULESIZE=$(getGranuleSize)
 ####################################
 # MemTotal is in K bytes
 TOTALMEM=$(grep MemTotal /proc/meminfo | awk '{ print $2 }')
-(( TOTALMEM = TOTALMEM * 1024 ))
+(( TOTALMEM_BYTES = TOTALMEM * 1024 ))
 
 ####################################
 ## hugepages
@@ -144,8 +144,13 @@ SHMALL=$(cat /proc/sys/kernel/shmall)
 ####################################
 
 # value is in k
-SOFT_MEMLOCK=$(grep 'oracle.*soft.*memlock' /etc/security/limits.conf | grep -v '^#' |  awk '{ print $4 }')
-HARD_MEMLOCK=$(grep 'oracle.*hard.*memlock' /etc/security/limits.conf | grep -v '^#' |  awk '{ print $4 }')
+# if 'unlimited' then set to value of total memory
+# grep -E 'oracle.*soft.*memlock.*unlimited|\*.*soft.*memlock.*unlimited' /etc/security/limits.conf
+SOFT_MEMLOCK=$( grep -E '^oracle.*soft.*memlock.*unlimited|^\*.*soft.*memlock.*unlimited' /etc/security/limits.conf | awk '{ print $4 }')
+[[ $SOFT_MEMLOCK == 'unlimited' ]] && SOFT_MEMLOCK=$TOTALMEM
+
+HARD_MEMLOCK=$( grep -E '^oracle.*hard.*memlock.*unlimited|^\*.*hard.*memlock.*unlimited' /etc/security/limits.conf | awk '{ print $4 }')
+[[ $HARD_MEMLOCK == 'unlimited' ]] && HARD_MEMLOCK=$TOTALMEM
 (( SOFT_MEMLOCK_BYTES = SOFT_MEMLOCK * 1024 ))
 (( HARD_MEMLOCK_BYTES = HARD_MEMLOCK * 1024 ))
 
@@ -153,65 +158,65 @@ HARD_MEMLOCK=$(grep 'oracle.*hard.*memlock' /etc/security/limits.conf | grep -v 
 cat <<MEMINFO
 
 OS:
-        totalmem: $TOTALMEM
+		  totalmem: $TOTALMEM_BYTES
 
-       hugepages: $HUGEPAGES
+		 hugepages: $HUGEPAGES
   hugepage_bytes: $HUGEPAGE_BYTES
 
-    soft_memlock: $SOFT_MEMLOCK
-        in bytes: $SOFT_MEMLOCK_BYTES
-    hard_memlock: $HARD_MEMLOCK
-        in bytes: $HARD_MEMLOCK_BYTES
+	 soft_memlock: $SOFT_MEMLOCK
+		  in bytes: $SOFT_MEMLOCK_BYTES
+	 hard_memlock: $HARD_MEMLOCK
+		  in bytes: $HARD_MEMLOCK_BYTES
 
-          shmmax: $SHMMAX
-          shmall: $SHMALL
-    shmall bytes: $SHMALL_BYTES
+			 shmmax: $SHMMAX
+			 shmall: $SHMALL
+	 shmall bytes: $SHMALL_BYTES
 
-        pagesize: $PAGESIZE
+		  pagesize: $PAGESIZE
 
 The following should be true:
 
 shmmax <= available memory
 shmall <= available memory
-SGA    <= hugepages
+SGA	 <= hugepages
 SGA <= memlock < available memory
 
 Oracle:
 
   granulesize: $GRANULESIZE
-          SGA: $SGA
+			 SGA: $SGA
 
 MEMINFO
 
 # is shmmax GT mem ?
-[ "$SHMMAX" -gt "$TOTALMEM" ] && {
-	echo "Warning: shmmax of $SHMMAX  > totalmem of $TOTALMEM"
-	echo "   Set shmmax to $TOTALMEM or less in /etc/sysctl.conf"
+[ "$SHMMAX" -gt "$TOTALMEM_BYTES" ] && {
+	echo "Warning: shmmax of $SHMMAX  > totalmem of $TOTALMEM_BYTES"
+	echo "	Set shmmax to $TOTALMEM_BYTES or less in /etc/sysctl.conf"
 	echo
 }
 
 # is shmall GT mem ?
-[ "$SHMALL_BYTES" -gt "$TOTALMEM" ] && {
-	echo "Warning: shmall of $SHMALL ( $SHMALL_BYTES bytes )  > totalmem of $TOTALMEM"
-	echo "   Set shmall to" $(( TOTALMEM / PAGESIZE )) "or less in /etc/sysctl.conf"
+[ "$SHMALL_BYTES" -gt "$TOTALMEM_BYTES" ] && {
+	echo "Warning: shmall of $SHMALL ( $SHMALL_BYTES bytes )  > totalmem of $TOTALMEM_BYTES"
+	echo "	Set shmall to" $(( TOTALMEM_BYTES / PAGESIZE )) "or less in /etc/sysctl.conf"
 	echo
 }
 
 # is SGA GT hugepages?
-[ "$SGA" -gt "$HUGEPAGE_BYTES" ] && echo "Warning: SGA of $SGA is > Hugepages of $HUGEPAGES ( $HUGEPAGE_BYTES bytes )"
+[ "$SGA" -gt "$HUGEPAGE_BYTES" ] && echo "Warning: SGA of $SGA is > Hugepages of $HUGEPAGES ( $HUGEPAGE_BYTES bytes )" ;echo
 
 # is sga <= memlock and memlock < memory ?
-[ "$SGA" -le "$SOFT_MEMLOCK_BYTES" -a "$SOFT_MEMLOCK_BYTES" -lt "$TOTALMEM" ] || {
+[ "$SGA" -le "$SOFT_MEMLOCK_BYTES" -a "$SOFT_MEMLOCK_BYTES" -le "$TOTALMEM_BYTES" ] || {
 	echo "Warning: SGA:SOFT_MEMLOCK:TOTALMEM imbalance"
-	RECSIZE=$(( ($TOTALMEM / 1024 ) - 1024 ))
+	RECSIZE=$(( ($TOTALMEM_BYTES / 1024 ) - 1024 ))
 	echo "  Should be: SGA <= soft_memlock < Total Memory"
 	echo "  Adjust 'oracle soft memlock $RECSIZE' in /etc/security/limits.conf"
 	echo
 }
 
-[ "$SGA" -le "$HARD_MEMLOCK_BYTES" -a "$HARD_MEMLOCK_BYTES" -lt "$TOTALMEM" ] || {
+[ "$SGA" -le "$HARD_MEMLOCK_BYTES" -a "$HARD_MEMLOCK_BYTES" -le "$TOTALMEM_BYTES" ] || {
 	echo "Warning: SGA:HARD_MEMLOCK:TOTALMEM imbalance"
-	RECSIZE=$(( ($TOTALMEM / 1024 ) - 1024 ))
+	RECSIZE=$(( ($TOTALMEM_BYTES / 1024 ) - 1024 ))
 	echo "  Should be: SGA <= hard memlock < Total Memory"
 	echo "  Adjust 'oracle hard memlock $RECSIZE' in /etc/security/limits.conf"
 	echo
@@ -222,7 +227,7 @@ MEMINFO
 	RECSIZE=$(( SGA / HUGEPAGE_SIZE / 1024 ))
 	echo "  Set HugePages to $RECSIZE or more"
 	echo "  Adjust vm.nr_hugepages=$RECSIZE in /etc/sysctl.conf"
-	echo 
+	echo
 }
 
 # is SGA multiple of granule?
@@ -240,10 +245,10 @@ echo
 echo 'All OK if no warnings shown'
 
 
-echo 
+echo
 echo "memory_target and memory_max_target are not compatible with HugePages"
 echo "Estimating SGA and PGA settings for any instances found using the memory target parameters"
-echo 
+echo
 
 for idx in ${!ESTIMATE_MEM[@]}
 do
@@ -265,6 +270,4 @@ do
 
 	fi
 done
-
-
 
