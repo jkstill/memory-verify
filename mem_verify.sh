@@ -158,7 +158,8 @@ HARD_MEMLOCK=$( grep -E '^oracle.*hard.*memlock.*unlimited|^\*.*hard.*memlock.*u
 cat <<MEMINFO
 
 OS:
-		  totalmem: $TOTALMEM_BYTES
+		  totalmem: $TOTALMEM
+		  in bytes: $TOTALMEM_BYTES
 
 		 hugepages: $HUGEPAGES
   hugepage_bytes: $HUGEPAGE_BYTES
