@@ -162,7 +162,7 @@ OS:
         in bytes: $TOTALMEM_BYTES
 
        hugepages: $HUGEPAGES
-        pagesize: $HUGEPAGE_SIZE
+        pagesize: $((HUGEPAGE_SIZE * 1024))
   hugepage_bytes: $HUGEPAGE_BYTES
 
     soft_memlock: $SOFT_MEMLOCK
