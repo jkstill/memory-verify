@@ -158,22 +158,23 @@ HARD_MEMLOCK=$( grep -E '^oracle.*hard.*memlock.*unlimited|^\*.*hard.*memlock.*u
 cat <<MEMINFO
 
 OS:
-		  totalmem: $TOTALMEM
-		  in bytes: $TOTALMEM_BYTES
+        totalmem: $TOTALMEM
+        in bytes: $TOTALMEM_BYTES
 
-		 hugepages: $HUGEPAGES
+       hugepages: $HUGEPAGES
+        pagesize: $HUGEPAGE_SIZE
   hugepage_bytes: $HUGEPAGE_BYTES
 
-	 soft_memlock: $SOFT_MEMLOCK
-		  in bytes: $SOFT_MEMLOCK_BYTES
-	 hard_memlock: $HARD_MEMLOCK
-		  in bytes: $HARD_MEMLOCK_BYTES
+    soft_memlock: $SOFT_MEMLOCK
+        in bytes: $SOFT_MEMLOCK_BYTES
+    hard_memlock: $HARD_MEMLOCK
+        in bytes: $HARD_MEMLOCK_BYTES
 
-			 shmmax: $SHMMAX
-			 shmall: $SHMALL
-	 shmall bytes: $SHMALL_BYTES
+          shmmax: $SHMMAX
+          shmall: $SHMALL
+    shmall bytes: $SHMALL_BYTES
 
-		  pagesize: $PAGESIZE
+        pagesize: $PAGESIZE
 
 The following should be true:
 
