@@ -223,7 +223,7 @@ fi
 [[ $SOFT_MEMLOCK == 'unlimited' ]] && SOFT_MEMLOCK=$TOTALMEM
 
 HARD_MEMLOCK=$( grep -E '^oracle.*hard.*memlock.*unlimited|^oracle.*hard.*memlock.*[0-9]+' $LIMITS_FILE  | awk '{ print $4 }')
-if [[ -z $SOFT_MEMLOCK ]]; then
+if [[ -z $HARD_MEMLOCK ]]; then
 	HARD_MEMLOCK=$( grep -E '^\*.*hard.*memlock.*unlimited|^\*.*hard.*memlock.*[0-9]+' $LIMITS_FILE  | awk '{ print $4 }')
 fi
 [[ $HARD_MEMLOCK == 'unlimited' ]] && HARD_MEMLOCK=$TOTALMEM
