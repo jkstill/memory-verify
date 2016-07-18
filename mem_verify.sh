@@ -136,37 +136,29 @@ unset ORAENV_ASK
 
 SGA=0
 
-for SID in $(grep -P '^[A-Za-z0-9]+\d*:' /etc/oratab | cut -f1 -d:)
+# the method of using oratab just too error prone
+#for SID in $(grep -P '^[A-Za-z0-9]+\d*:' /etc/oratab | cut -f1 -d:)
+for sid in $(ps -e -ocmd | grep [r]a_pmon | sed -e 's/ora_pmon_//'| grep -v -- 'sed -e')
 do
+	#echo "Working on $SID"
 
-	# check to see if there is a corresponding active instance
-	isActive=$(ps -e -ocmd | grep "^[o]ra_pmon_${SID}$")
+	. oraenv <<< $SID >/dev/null
 
+	TMPSGA=$(getOraParm 'sga_max_size')
 
-	[[ -n $isActive ]] && {
+	(( SGA += TMPSGA ))
 
-		#echo "is Active: |$isActive|"
-		#echo "Working on $SID"
+	ORASIDS[$IDX]=$SID
+	ESTIMATE_MEM[$IDX]=0
 
-		. oraenv <<< $SID >/dev/null
+	MEMORY_TARGET=$(getOraParm 'memory_target')
+	MEMORY_MAX_TARGET=$(getOraParm 'memory_max_target')
 
-		echo
-		TMPSGA=$(getOraParm 'sga_max_size')
-
-		(( SGA += TMPSGA ))
-
-		ORASIDS[$IDX]=$SID
-		ESTIMATE_MEM[$IDX]=0
-
-		MEMORY_TARGET=$(getOraParm 'memory_target')
-		MEMORY_MAX_TARGET=$(getOraParm 'memory_max_target')
-
-		[ "$MEMORY_TARGET" != '0' -o "$MEMORY_MAX_TARGET" != '0' ] && {
-			ESTIMATE_MEM[$IDX]=1
-		}
-
-		(( IDX++ ))
+	[ "$MEMORY_TARGET" != '0' -o "$MEMORY_MAX_TARGET" != '0' ] && {
+		ESTIMATE_MEM[$IDX]=1
 	}
+
+	(( IDX++ ))
 
 done
 
@@ -223,12 +215,22 @@ SHMALL=$(cat /proc/sys/kernel/shmall)
 # value is in k
 # if 'unlimited' then set to value of total memory
 LIMITS_FILE='/etc/security/limits.conf'
-# grep -E 'oracle.*soft.*memlock.*unlimited|\*.*soft.*memlock.*unlimited' /etc/security/limits.conf
-SOFT_MEMLOCK=$( grep -E '^oracle.*soft.*memlock.*unlimited|^\*.*soft.*memlock.*unlimited|^oracle.*soft.*memlock.*[0-9]+|^\*.*soft.*memlock.*[0-9]+' $LIMITS_FILE | awk '{ print $4 }')
+
+SOFT_MEMLOCK=$( grep -E '^oracle.*soft.*memlock.*unlimited|^oracle.*soft.*memlock.*[0-9]++' $LIMITS_FILE | awk '{ print $4 }')
+if [[ -z $SOFT_MEMLOCK ]]; then
+	SOFT_MEMLOCK=$( grep -E '^\*.*soft.*memlock.*unlimited|^\*.*soft.*memlock.*[0-9]+' $LIMITS_FILE | awk '{ print $4 }')
+fi
 [[ $SOFT_MEMLOCK == 'unlimited' ]] && SOFT_MEMLOCK=$TOTALMEM
 
-HARD_MEMLOCK=$( grep -E '^oracle.*hard.*memlock.*unlimited|^\*.*hard.*memlock.*unlimited|^oracle.*hard.*memlock.*[0-9]+|^\*.*hard.*memlock.*[0-9]+' $LIMITS_FILE  | awk '{ print $4 }')
+HARD_MEMLOCK=$( grep -E '^oracle.*hard.*memlock.*unlimited|^oracle.*hard.*memlock.*[0-9]+' $LIMITS_FILE  | awk '{ print $4 }')
+if [[ -z $SOFT_MEMLOCK ]]; then
+	HARD_MEMLOCK=$( grep -E '^\*.*hard.*memlock.*unlimited|^\*.*hard.*memlock.*[0-9]+' $LIMITS_FILE  | awk '{ print $4 }')
+fi
 [[ $HARD_MEMLOCK == 'unlimited' ]] && HARD_MEMLOCK=$TOTALMEM
+
+[[ -z $SOFT_MEMLOCK ]] && SOFT_MEMLOCK=0
+[[ -z $HARD_MEMLOCK ]] && HARD_MEMLOCK=0
+
 (( SOFT_MEMLOCK_BYTES = SOFT_MEMLOCK * 1024 ))
 (( HARD_MEMLOCK_BYTES = HARD_MEMLOCK * 1024 ))
 
@@ -354,6 +356,22 @@ do
 
 	fi
 done
+
+# show configured instances
+echo
+echo "##################################"
+echo "## Configured Instances ##########"
+echo "##################################"
+grep '^[A-Za-z]' /etc/oratab
+echo
+
+# show active instances
+echo "##################################"
+echo "## Active Instances ##############"
+echo "##################################"
+ps -e -ocmd | grep [o]ra_pmon
+
+echo 
 
 if [[ $(chkAnonHuge) -gt 0 ]]; then
 cat <<-CHK4ANON
