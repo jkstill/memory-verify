@@ -18,11 +18,11 @@ PYTHDOC
 		[1]='/sys/kernel/mm/transparent_hugepage/enabled'
 	)
 
-	fileCount=${#anonConfigFiles[@]}
+	declare fileCount=${#anonConfigFiles[@]}
 
-	i=0
+	declare i=0
 
-	anonFileToChk=''
+	declare anonFileToChk=''
 
 	while [[ $fileCount -gt $i ]]
 	do
@@ -48,12 +48,12 @@ If the file does not even exist, that Anonymous HugePages are not configured and
 
 ANONCHK
 
-	anonHugePagesConfigured=1
+	declare anonHugePagesConfigured=1
 	[[ -z $anonFileToChk ]] && anonHugePagesConfigured=0
 
 	#echo anonHugePagesConfigured: $anonHugePagesConfigured
 
-	anonHugePagesEnabled=0
+	declare anonHugePagesEnabled=0
 
 	if [[ $anonHugePagesConfigured -gt 0 ]]; then
 		grep '[always]' $anonFileToChk >/dev/null && {
