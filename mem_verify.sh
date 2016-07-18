@@ -9,7 +9,8 @@ function getOraValue() {
 
 #echo "SQL: $SQL" >&2
 
-	tmpResult=$(sqlplus -S /nolog <<-EOF
+	# attemtps to redirector the STDERR here have failed for some reason
+	tmpResult=$(sqlplus -S /nolog <<-EOF 
 		connect / as sysdba
 		set term on feed off head off  echo off verify off
 		set timing off
@@ -17,7 +18,7 @@ function getOraValue() {
 		btitle off
 		$SQL;
 	EOF
-	)
+	) 
 
 	# sqlplus adding a trailing LF
 	tmpResult=$( echo $tmpResult | tr -d "[\012]" )
@@ -53,6 +54,73 @@ function getEstSGA() {
 	echo $sgaSize
 }
 
+
+function chkAnonHuge () {
+
+: <<'PYTHDOC'
+
+check for anonymous huge pages
+see Oracle Support Note:
+  ALERT: Disable Transparent HugePages on SLES11, RHEL6, RHEL7, OL6, OL7 and UEK2 Kernels (Doc ID 1557478.1)
+
+The note contains a recommendation to check /proc/meminfo as one method to detect Anonymous HugePages,
+but that method is only reliable if some Anonymous HugePages have actually been allocated.
+
+PYTHDOC
+
+	declare -a anonConfigFiles=(
+		[0]='/sys/kernel/mm/redhat_transparent_hugepage/enabled'
+		[1]='/sys/kernel/mm/transparent_hugepage/enabled'
+	)
+
+	declare fileCount=${#anonConfigFiles[@]}
+
+	declare i=0
+
+	declare anonFileToChk=''
+
+	while [[ $fileCount -gt $i ]]
+	do
+		#echo $i: ${anonConfigFiles[$i]}
+		[[ -r ${anonConfigFiles[$i]} ]] && {
+			anonFileToChk=${anonConfigFiles[$i]}
+			break
+		}
+		(( i++ ))
+	done
+
+	#echo anonFileToChk: $anonFileToChk
+
+: <<'ANONCHK'
+
+check the contents of file anonFileToChk
+
+'[always] never': Anonymous HugePages should be disabled.
+
+'always [never]': Anonymous HugePages are configured in the kernel, but disabled.
+
+If the file does not even exist, that Anonymous HugePages are not configured and can be ignored.
+
+ANONCHK
+
+	declare anonHugePagesConfigured=1
+	[[ -z $anonFileToChk ]] && anonHugePagesConfigured=0
+
+	#echo anonHugePagesConfigured: $anonHugePagesConfigured
+
+	declare anonHugePagesEnabled=0
+
+	if [[ $anonHugePagesConfigured -gt 0 ]]; then
+		grep '[always]' $anonFileToChk >/dev/null && {
+			#echo anonymous HugePages are enabled
+			anonHugePagesEnabled=1
+		}
+	fi
+
+	# return code - will be either 0 or 1
+	echo $(( anonHugePagesConfigured * anonHugePagesEnabled ))
+
+}
 
 ###################################
 ## SGA
@@ -108,8 +176,17 @@ done
 ## GRANULE
 ###################################
 
-# just hardcoding this for now
 GRANULESIZE=$(getGranuleSize)
+
+# may get the query returned as a result if error
+
+granuleChk=$(echo $GRANULESIZE | grep -i 'select' )
+
+# avoid divide by 0 later in perl
+if [[ -n $granuleChk ]]; then
+	GRANULESIZE=1
+fi
+
 
 ####################################
 ## total mem
@@ -145,11 +222,12 @@ SHMALL=$(cat /proc/sys/kernel/shmall)
 
 # value is in k
 # if 'unlimited' then set to value of total memory
+LIMITS_FILE='/etc/security/limits.conf'
 # grep -E 'oracle.*soft.*memlock.*unlimited|\*.*soft.*memlock.*unlimited' /etc/security/limits.conf
-SOFT_MEMLOCK=$( grep -E '^oracle.*soft.*memlock.*unlimited|^\*.*soft.*memlock.*unlimited' /etc/security/limits.conf | awk '{ print $4 }')
+SOFT_MEMLOCK=$( grep -E '^oracle.*soft.*memlock.*unlimited|^\*.*soft.*memlock.*unlimited|^oracle.*soft.*memlock.*[0-9]+|^\*.*soft.*memlock.*[0-9]+' $LIMITS_FILE | awk '{ print $4 }')
 [[ $SOFT_MEMLOCK == 'unlimited' ]] && SOFT_MEMLOCK=$TOTALMEM
 
-HARD_MEMLOCK=$( grep -E '^oracle.*hard.*memlock.*unlimited|^\*.*hard.*memlock.*unlimited' /etc/security/limits.conf | awk '{ print $4 }')
+HARD_MEMLOCK=$( grep -E '^oracle.*hard.*memlock.*unlimited|^\*.*hard.*memlock.*unlimited|^oracle.*hard.*memlock.*[0-9]+|^\*.*hard.*memlock.*[0-9]+' $LIMITS_FILE  | awk '{ print $4 }')
 [[ $HARD_MEMLOCK == 'unlimited' ]] && HARD_MEMLOCK=$TOTALMEM
 (( SOFT_MEMLOCK_BYTES = SOFT_MEMLOCK * 1024 ))
 (( HARD_MEMLOCK_BYTES = HARD_MEMLOCK * 1024 ))
@@ -212,7 +290,7 @@ MEMINFO
 	echo "Warning: SGA:SOFT_MEMLOCK:TOTALMEM imbalance"
 	RECSIZE=$(( ($TOTALMEM_BYTES / 1024 ) - 1024 ))
 	echo "  Should be: SGA <= soft_memlock < Total Memory"
-	echo "  Adjust 'oracle soft memlock $RECSIZE' in /etc/security/limits.conf"
+	echo "  Adjust 'oracle soft memlock $RECSIZE' in $LIMITS_FILE"
 	echo
 }
 
@@ -220,7 +298,7 @@ MEMINFO
 	echo "Warning: SGA:HARD_MEMLOCK:TOTALMEM imbalance"
 	RECSIZE=$(( ($TOTALMEM_BYTES / 1024 ) - 1024 ))
 	echo "  Should be: SGA <= hard memlock < Total Memory"
-	echo "  Adjust 'oracle hard memlock $RECSIZE' in /etc/security/limits.conf"
+	echo "  Adjust 'oracle hard memlock $RECSIZE' in $LIMITS_FILE"
 	echo
 }
 
@@ -234,8 +312,12 @@ MEMINFO
 
 # is SGA multiple of granule?
 # returned value should be 0 if SGA is evenly dvisible by granule
+#echo "SGA: |$SGA|"
+#echo "GRANULESIZE: |$GRANULESIZE|"
+
 DIFF=$( perl -e '{ my($sga,$granule)=($ARGV[0],$ARGV[1]); my $x= int($sga/$granule); my $y = $sga/$granule; print $y-$x }' $SGA $GRANULESIZE )
-[ "$DIFF" -eq 0 ] || echo "Warning: SGA of $SGA is not evenly divisible by the granulesize of $GRANULESIZE"
+[[ -z $DIFF ]] && DIFF=0
+[[ "$DIFF" -eq 0 ]] || echo "Warning: SGA of $SGA is not evenly divisible by the granulesize of $GRANULESIZE"
 
 echo
 echo "use 'sysctl -p' to reload configuration"
@@ -272,4 +354,23 @@ do
 
 	fi
 done
+
+if [[ $(chkAnonHuge) -gt 0 ]]; then
+cat <<-CHK4ANON
+
+!!!!!!!!!!!!!!!
+!! Important !!
+!!!!!!!!!!!!!!!
+
+The use of Anonymous HugePages has been detected on this server.
+Anonymous HugePages are not compatible with Oracle and should be disabled.
+
+Please see the following Oracle Support Note:
+
+  ALERT: Disable Transparent HugePages on SLES11, RHEL6, RHEL7, OL6, OL7 and UEK2 Kernels (Doc ID 1557478.1)
+  
+CHK4ANON
+
+fi
+
 
