@@ -140,7 +140,7 @@ SGA=0
 #for SID in $(grep -P '^[A-Za-z0-9]+\d*:' /etc/oratab | cut -f1 -d:)
 for sid in $(ps -e -ocmd | grep [r]a_pmon | sed -e 's/ora_pmon_//'| grep -v -- 'sed -e')
 do
-	#echo "Working on $SID"
+	echo "Working on $SID"
 
 	. oraenv <<< $SID >/dev/null
 
