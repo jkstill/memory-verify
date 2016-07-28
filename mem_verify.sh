@@ -138,7 +138,9 @@ SGA=0
 
 # the method of using oratab just too error prone
 #for SID in $(grep -P '^[A-Za-z0-9]+\d*:' /etc/oratab | cut -f1 -d:)
-for sid in $(ps -e -ocmd | grep [r]a_pmon | sed -e 's/ora_pmon_//'| grep -v -- 'sed -e')
+# next line had a bug - sid needs to be uppercase, but was lower case
+# well spotted by Fred Denis
+for SID in $(ps -e -ocmd | grep [r]a_pmon | sed -e 's/ora_pmon_//'| grep -v -- 'sed -e')
 do
 	echo "Working on $SID"
 
