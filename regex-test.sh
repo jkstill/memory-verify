@@ -18,17 +18,19 @@ LIMITS_FILE=limits-test.conf
 # from the limits.conf man page
 #  All items support the values -1, unlimited or infinity indicating no limit, except for priority and nice.
 
-SOFT_MEMLOCK=$( grep -E '^oracle.*soft.*memlock.*(unlimited|infinity|-1)|^oracle.*soft.*memlock.*[0-9]++' $LIMITS_FILE | tail -1 | awk '{ print $4 }')
-if [[ -z $SOFT_MEMLOCK ]]; then
-	SOFT_MEMLOCK=$( grep -E '^\*.*soft.*memlock.*(unlimited|infinity|-1)|^\*.*soft.*memlock.*[0-9]+' $LIMITS_FILE | tail -1 | awk '{ print $4 }')
-fi
-[[ $(echo $SOFT_MEMLOCK | grep -E 'unlimited|infinity|-1') ]] && SOFT_MEMLOCK=$TOTALMEM
+UNLIMITED_REGEX='unlimited|infinity|-1'
 
-HARD_MEMLOCK=$( grep -E '^oracle.*hard.*memlock.*(unlimited|infinity|-1)|^oracle.*hard.*memlock.*[0-9]+' $LIMITS_FILE  | tail -1 | awk '{ print $4 }')
-if [[ -z $HARD_MEMLOCK ]]; then
-	HARD_MEMLOCK=$( grep -E '^\*.*hard.*memlock.*(unlimited|infinity|-1)|^\*.*hard.*memlock.*[0-9]+' $LIMITS_FILE  | tail -1 | awk '{ print $4 }')
+SOFT_MEMLOCK=$( grep -E "^oracle.*soft.*memlock.*($UNLIMITED_REGEX)|^oracle.*soft.*memlock.*[0-9]++" $LIMITS_FILE | tail -1 | awk '{ print $4 }')
+if [[ -z $SOFT_MEMLOCK ]]; then
+	SOFT_MEMLOCK=$( grep -E "^\*.*soft.*memlock.*($UNLIMITED_REGEX)|^\*.*soft.*memlock.*[0-9]+" $LIMITS_FILE | tail -1 | awk '{ print $4 }')
 fi
-[[ $(echo $HARD_MEMLOCK | grep -E '(unlimited|infinity|-1)|infinity|-1') ]] && HARD_MEMLOCK=$TOTALMEM
+[[ $(echo $SOFT_MEMLOCK | grep -E "$UNLIMITED_REGEX") ]] && SOFT_MEMLOCK=$TOTALMEM
+
+HARD_MEMLOCK=$( grep -E "^oracle.*hard.*memlock.*($UNLIMITED_REGEX)|^oracle.*hard.*memlock.*[0-9]+" $LIMITS_FILE  | tail -1 | awk '{ print $4 }')
+if [[ -z $HARD_MEMLOCK ]]; then
+	HARD_MEMLOCK=$( grep -E "^\*.*hard.*memlock.*($UNLIMITED_REGEX)|^\*.*hard.*memlock.*[0-9]+" $LIMITS_FILE  | tail -1 | awk '{ print $4 }')
+fi
+[[ $(echo $HARD_MEMLOCK | grep -E "$UNLIMITED_REGEX") ]] && HARD_MEMLOCK=$TOTALMEM
 
 [[ -z $SOFT_MEMLOCK ]] && SOFT_MEMLOCK=0
 [[ -z $HARD_MEMLOCK ]] && HARD_MEMLOCK=0
