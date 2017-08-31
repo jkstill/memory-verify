@@ -111,7 +111,7 @@ ANONCHK
 	declare anonHugePagesEnabled=0
 
 	if [[ $anonHugePagesConfigured -gt 0 ]]; then
-		grep '[always]' $anonFileToChk >/dev/null && {
+		grep '\[always\]' $anonFileToChk >/dev/null && {
 			#echo anonymous HugePages are enabled
 			anonHugePagesEnabled=1
 		}
