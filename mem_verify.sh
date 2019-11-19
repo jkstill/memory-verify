@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # memverify
 # check of oracle and linux memory parameters
@@ -10,15 +10,15 @@ function getOraValue() {
 #echo "SQL: $SQL" >&2
 
 	# attemtps to redirector the STDERR here have failed for some reason
-	tmpResult=$(sqlplus -S /nolog <<-EOF 
+	tmpResult=$(sqlplus -S /nolog <<-EOF
 		connect / as sysdba
-		set term on feed off head off  echo off verify off
+		set term on feed off head off	 echo off verify off
 		set timing off
 		ttitle off
 		btitle off
 		$SQL;
 	EOF
-	) 
+	)
 
 	# sqlplus adding a trailing LF
 	tmpResult=$( echo $tmpResult | tr -d "[\012]" )
@@ -129,6 +129,9 @@ ANONCHK
 # if older version of Bash ( lt 4.x) there are no associative arrays
 declare -a ORASIDS
 declare -a ESTIMATE_MEM
+declare -a GRANULE_SZ_ERR
+declare -A GRANULE_SZ
+declare -A SGA_SZ
 IDX=0
 
 unset SQLPATH
@@ -160,26 +163,27 @@ do
 		ESTIMATE_MEM[$IDX]=1
 	}
 
+	GRANULESIZE=$(getGranuleSize)
+
+	# may get the query returned as a result if error
+
+	granuleChk=$(echo $GRANULESIZE | grep -i 'select' )
+
+	# avoid divide by 0 later in perl
+	if [[ -n $granuleChk ]]; then
+		GRANULESIZE=1
+	fi
+
+	GRANULE_SZ[$SID]=$GRANULESIZE
+	SGA_SZ[$SID]=$TMPSGA
+
+	DIFF=$( perl -e '{ my($sga,$granule)=($ARGV[0],$ARGV[1]); my $x= int($sga/$granule); my $y = $sga/$granule; print $y-$x }' $TMPSGA $GRANULESIZE )
+	[[ -z $DIFF ]] && DIFF=0
+	[[ "$DIFF" -eq 0 ]] || GRANULE_SZ_ERR[$IDX]=$SID
+
 	(( IDX++ ))
 
 done
-
-
-
-###################################
-## GRANULE
-###################################
-
-GRANULESIZE=$(getGranuleSize)
-
-# may get the query returned as a result if error
-
-granuleChk=$(echo $GRANULESIZE | grep -i 'select' )
-
-# avoid divide by 0 later in perl
-if [[ -n $granuleChk ]]; then
-	GRANULESIZE=1
-fi
 
 
 ####################################
@@ -219,7 +223,7 @@ SHMALL=$(cat /proc/sys/kernel/shmall)
 LIMITS_FILE='/etc/security/limits.conf'
 
 # from the limits.conf man page
-#  All items support the values -1, unlimited or infinity indicating no limit, except for priority and nice.
+#	All items support the values -1, unlimited or infinity indicating no limit, except for priority and nice.
 
 UNLIMITED_REGEX='unlimited|infinity|-1'
 
@@ -229,9 +233,9 @@ if [[ -z $SOFT_MEMLOCK ]]; then
 fi
 [[ $(echo $SOFT_MEMLOCK | grep -E "$UNLIMITED_REGEX") ]] && SOFT_MEMLOCK=$TOTALMEM
 
-HARD_MEMLOCK=$( grep -E "^oracle.*hard.*memlock.*($UNLIMITED_REGEX)|^oracle.*hard.*memlock.*[0-9]+" $LIMITS_FILE  | tail -1 | awk '{ print $4 }')
+HARD_MEMLOCK=$( grep -E "^oracle.*hard.*memlock.*($UNLIMITED_REGEX)|^oracle.*hard.*memlock.*[0-9]+" $LIMITS_FILE	| tail -1 | awk '{ print $4 }')
 if [[ -z $HARD_MEMLOCK ]]; then
-	HARD_MEMLOCK=$( grep -E "^\*.*hard.*memlock.*($UNLIMITED_REGEX)|^\*.*hard.*memlock.*[0-9]+" $LIMITS_FILE  | tail -1 | awk '{ print $4 }')
+	HARD_MEMLOCK=$( grep -E "^\*.*hard.*memlock.*($UNLIMITED_REGEX)|^\*.*hard.*memlock.*[0-9]+" $LIMITS_FILE	 | tail -1 | awk '{ print $4 }')
 fi
 [[ $(echo $HARD_MEMLOCK | grep -E "$UNLIMITED_REGEX") ]] && HARD_MEMLOCK=$TOTALMEM
 
@@ -245,23 +249,23 @@ fi
 cat <<MEMINFO
 
 OS:
-        totalmem: $TOTALMEM
-        in bytes: $TOTALMEM_BYTES
+		  totalmem: $TOTALMEM
+		  in bytes: $TOTALMEM_BYTES
 
-       hugepages: $HUGEPAGES
-        pagesize: $((HUGEPAGE_SIZE * 1024))
+		 hugepages: $HUGEPAGES
+		  pagesize: $((HUGEPAGE_SIZE * 1024))
   hugepage_bytes: $HUGEPAGE_BYTES
 
-    soft_memlock: $SOFT_MEMLOCK
-        in bytes: $SOFT_MEMLOCK_BYTES
-    hard_memlock: $HARD_MEMLOCK
-        in bytes: $HARD_MEMLOCK_BYTES
+	 soft_memlock: $SOFT_MEMLOCK
+		  in bytes: $SOFT_MEMLOCK_BYTES
+	 hard_memlock: $HARD_MEMLOCK
+		  in bytes: $HARD_MEMLOCK_BYTES
 
-          shmmax: $SHMMAX
-          shmall: $SHMALL
-    shmall bytes: $SHMALL_BYTES
+			 shmmax: $SHMMAX
+			 shmall: $SHMALL
+	 shmall bytes: $SHMALL_BYTES
 
-        pagesize: $PAGESIZE
+		  pagesize: $PAGESIZE
 
 The following should be true:
 
@@ -270,23 +274,53 @@ shmall <= available memory
 SGA	 <= hugepages
 SGA <= memlock < available memory
 
-Oracle:
+Oracle Total:
 
-  granulesize: $GRANULESIZE
-          SGA: $SGA
+			 SGA: $SGA
 
 MEMINFO
 
+#########################################
+# show granule size and SGA per instance
+#########################################
+
+for mysid in ${!SGA_SZ[@]}
+do
+	echo Instance: $mysid
+	echo "			SGA: ${SGA_SZ[$mysid]}"
+	echo "  GRANULE SZ: ${GRANULE_SZ[$mysid]}"
+done
+
+####################################
+## show granule size errors, if any
+####################################
+
+if [[ ${#GRANULE_SZ_ERR[@]} -ge 1 ]]; then
+
+	echo
+	echo "!! The SGA size is not an even multiple of Granule size for these instances: !!"
+
+	declare lastEl=${#GRANULE_SZ_ERR[@]}
+	(( lastEl-- ))
+
+	for el in $(seq 0 $lastEl)
+	do
+		echo "  ${GRANULE_SZ_ERR[$el]}"
+	done
+
+fi
+
+
 # is shmmax GT mem ?
 [ "$SHMMAX" -gt "$TOTALMEM_BYTES" ] && {
-	echo "Warning: shmmax of $SHMMAX  > totalmem of $TOTALMEM_BYTES"
+	echo "Warning: shmmax of $SHMMAX	 > totalmem of $TOTALMEM_BYTES"
 	echo "	Set shmmax to $TOTALMEM_BYTES or less in /etc/sysctl.conf"
 	echo
 }
 
 # is shmall GT mem ?
 [ "$SHMALL_BYTES" -gt "$TOTALMEM_BYTES" ] && {
-	echo "Warning: shmall of $SHMALL ( $SHMALL_BYTES bytes )  > totalmem of $TOTALMEM_BYTES"
+	echo "Warning: shmall of $SHMALL ( $SHMALL_BYTES bytes )	 > totalmem of $TOTALMEM_BYTES"
 	echo "	Set shmall to" $(( TOTALMEM_BYTES / PAGESIZE )) "or less in /etc/sysctl.conf"
 	echo
 }
@@ -318,15 +352,6 @@ MEMINFO
 	echo "  Adjust vm.nr_hugepages=$RECSIZE in /etc/sysctl.conf"
 	echo
 }
-
-# is SGA multiple of granule?
-# returned value should be 0 if SGA is evenly dvisible by granule
-#echo "SGA: |$SGA|"
-#echo "GRANULESIZE: |$GRANULESIZE|"
-
-DIFF=$( perl -e '{ my($sga,$granule)=($ARGV[0],$ARGV[1]); my $x= int($sga/$granule); my $y = $sga/$granule; print $y-$x }' $SGA $GRANULESIZE )
-[[ -z $DIFF ]] && DIFF=0
-[[ "$DIFF" -eq 0 ]] || echo "Warning: SGA of $SGA is not evenly divisible by the granulesize of $GRANULESIZE"
 
 echo
 echo "use 'sysctl -p' to reload configuration"
@@ -378,7 +403,7 @@ echo "## Active Instances ##############"
 echo "##################################"
 ps -e -ocmd | grep [o]ra_pmon
 
-echo 
+echo
 
 if [[ $(chkAnonHuge) -gt 0 ]]; then
 cat <<-CHK4ANON
@@ -393,9 +418,7 @@ Anonymous HugePages are not compatible with Oracle and should be disabled.
 Please see the following Oracle Support Note:
 
   ALERT: Disable Transparent HugePages on SLES11, RHEL6, RHEL7, OL6, OL7 and UEK2 Kernels (Doc ID 1557478.1)
-  
+
 CHK4ANON
 
 fi
-
-
