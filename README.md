@@ -1,8 +1,13 @@
 
+# HugePages utilities for Oracle
+
+## memory_verify.sh
+
 Use the mem_verify.sh script to help verify and configure HugePages on Linux servers used for Oracle.
 
-
 Example usage:
+
+```text
 
 [oracle@oravm01 hugepages]$ ./mem_verify.sh
 
@@ -63,5 +68,77 @@ All OK if no warnings shown
 
 memory_target and memory_max_target are not compatible with HugePages
 Estimating SGA and PGA settings for any instances found using the memory target parameters
+
+```
+
+## oracle-hugepages-usage.pl
+
+Show usage of HugePages by Oracle
+
+Linux only, 2.6.14+ kernel 
+
+This script works by parsing the /proc/PID/smaps file
+
+See `man proc` for details.
+
+No HugePages usage by Oracle:
+
+```text
+
+[root@ora192rac01 tmp]# ./oracle-hugepages-usage.pl
+
+#################### Working on 5583 ####################
+
+PID: 5583
+CMD: asm_pmon_+asm1
+No HugeTables usage found
+
+#################### Working on 6021 ####################
+
+PID: 6021
+CMD: ora_pmon_cdb1
+No HugeTables usage found
+
+```
+
+Some HugePages usage by Oracle
+
+```text
+[root@rac19c01 tmp]# ./oracle-hugepages-usage.pl
+
+#################### Working on 28862 ####################
+
+PID: 28862
+CMD: asm_pmon_+asm1
+No HugeTables usage found
+
+#################### Working on 29872 ####################
+
+PID: 29872
+CMD: ora_pmon_cdb1
+==================================================
+PageSize:      2048 kB
+Size:               10240 kB
+AnonPages (should be 0):           0 kB
+==================================================
+PageSize:      2048 kB
+Size:                8192 kB
+AnonPages (should be 0):           0 kB
+==================================================
+PageSize:      2048 kB
+Size:             3063808 kB
+AnonPages (should be 0):           0 kB
+
+```
+
+If there are no Oracle PMON processes, there will be no output:
+
+```text
+
+$ ~/oracle/hugepages/memory-verify $ ./oracle-hugepages-usage.pl
+
+```
+
+
 
 

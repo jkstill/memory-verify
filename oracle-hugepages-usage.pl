@@ -1,5 +1,13 @@
 #!/usr/bin/env perl
 
+=head1 Author
+
+ Jared Still - Pythian - 2020-02-13
+ still@pythian.com
+ jkstill@gmail.com
+
+=cut 
+
 use warnings;
 use strict;
 use IO::File;
@@ -116,7 +124,4 @@ foreach my $psLine ( qx(ps -eo pid,comm  | grep [p]mon) ) {
 }
 
 	
-
-	#print '#' x 20 . " PID: $pid " . '#' x 20 . "\n";
-
 
