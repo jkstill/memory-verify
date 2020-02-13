@@ -5,7 +5,7 @@
 
 Use the mem_verify.sh script to help verify and configure HugePages on Linux servers used for Oracle.
 
-Example usage:
+### Example usage:
 
 ```text
 
@@ -81,7 +81,7 @@ This script works by parsing the /proc/PID/smaps file
 
 See `man proc` for details.
 
-No HugePages usage by Oracle:
+### No HugePages usage by Oracle:
 
 ```text
 
@@ -101,7 +101,7 @@ No HugeTables usage found
 
 ```
 
-Some HugePages usage by Oracle
+### Some HugePages usage by Oracle
 
 ```text
 [root@rac19c01 tmp]# ./oracle-hugepages-usage.pl
@@ -130,6 +130,8 @@ Size:             3063808 kB
 AnonPages (should be 0):           0 kB
 
 ```
+
+### No Oracle Processes
 
 If there are no Oracle PMON processes, there will be no output:
 
