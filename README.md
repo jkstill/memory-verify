@@ -141,6 +141,56 @@ $ ~/oracle/hugepages/memory-verify $ ./oracle-hugepages-usage.pl
 
 ```
 
+## oracle-pagesizes.pl
+
+
+This script shows summarized usage of oracle pmon processes, by pagesize.
+
+example:
+
+```text
+[root@rac19c01 tmp]# ./oracle-pagesizes.pl | expand -t3
+
+#################### Working on 5880 ####################
+
+PID: 5880
+CMD: asm_pmon_+asm1
+
+#################### Working on 19841 ####################
+
+PID: 19841
+CMD: ora_pmon_cdb1
+
+
+#################### Memory Info per PMON Process ####################
+
+PID: 5880   CMD: asm_pmon_+asm1
+
+   pagesize: 4 kB
+     Size: 1,594,224,640
+     AnonHugePages: 0
+     Swap: 532,832,256
+     Rss: 35,385,344
+
+PID: 19841   CMD: ora_pmon_cdb1
+
+   pagesize: 2048 kB
+     Size: 3,158,310,912
+     AnonHugePages: 0
+     Swap: 0
+     Rss: 0
+   pagesize: 4 kB
+     Size: 742,035,456
+     AnonHugePages: 0
+     Swap: 0
+     Rss: 65,454,080
+
+
+```
+
+This script does need improvement.  As seen in the previous example the 4k pages may be heap memory for the process, as well as overflow when HugePages have been exhausted.
+
+In this example I know that the 4k usages is all local heap memory, as the instance was started with 'use_large_pages = ONLY'.
 
 
 
