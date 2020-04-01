@@ -10,7 +10,7 @@ $ ls -l /proc/$$/smaps
 
 Even so, the Linux capabilities system may prevent you from reading the file.
 
-This can be changed by setting the `CAP_SYS_PTRACE' capability for `cat`:
+This can be changed by setting the `CAP_SYS_PTRACE` capability for `cat`:
 
 ```text
 # getcap /usr/bin/cat
