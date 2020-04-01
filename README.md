@@ -144,53 +144,119 @@ $ ~/oracle/hugepages/memory-verify $ ./oracle-hugepages-usage.pl
 ## oracle-pagesizes.pl
 
 
-This script shows summarized usage of oracle pmon processes, by pagesize.
+This script shows summarized usage of oracle pmon processes, by pagesize and memory type: heap or shared
 
-example:
+example without HugePages:
 
 ```text
-[root@rac19c01 tmp]# ./oracle-pagesizes.pl | expand -t3
+# ./oracle-pagesizes.pl
 
-#################### Working on 5880 ####################
+#################### Working on 5583 ####################
 
-PID: 5880
+PID: 5583
 CMD: asm_pmon_+asm1
 
-#################### Working on 19841 ####################
+#################### Working on 6021 ####################
 
-PID: 19841
+PID: 6021
 CMD: ora_pmon_cdb1
 
 
 #################### Memory Info per PMON Process ####################
 
-PID: 5880   CMD: asm_pmon_+asm1
+PID: 6021   CMD: ora_pmon_cdb1
 
-   pagesize: 4 kB
-     Size: 1,594,224,640
-     AnonHugePages: 0
-     Swap: 532,832,256
-     Rss: 35,385,344
+   MemType: shared
+      pagesize: 4 kB
+        Size: 3,422,576,640
+        AnonHugePages: 0
+        Swap: 557,789,184
+        Rss: 4,648,960
 
-PID: 19841   CMD: ora_pmon_cdb1
+   MemType: heap
+      pagesize: 4 kB
+        Size: 473,858,048
+        AnonHugePages: 0
+        Swap: 3,506,176
+        Rss: 7,917,568
 
-   pagesize: 2048 kB
-     Size: 3,158,310,912
-     AnonHugePages: 0
-     Swap: 0
-     Rss: 0
-   pagesize: 4 kB
-     Size: 742,035,456
-     AnonHugePages: 0
-     Swap: 0
-     Rss: 65,454,080
 
+PID: 5583   CMD: asm_pmon_+asm1
+
+   MemType: shared
+      pagesize: 4 kB
+        Size: 1,137,209,344
+        AnonHugePages: 0
+        Swap: 580,943,872
+        Rss: 14,974,976
+
+   MemType: heap
+      pagesize: 4 kB
+        Size: 457,011,200
+        AnonHugePages: 0
+        Swap: 2,797,568
+        Rss: 9,850,880
 
 ```
 
-This script does need improvement.  As seen in the previous example the 4k pages may be heap memory for the process, as well as overflow when HugePages have been exhausted.
+example with HugePages:
 
-In this example I know that the 4k usages is all local heap memory, as the instance was started with 'use_large_pages = ONLY'.
+```text
+# ./oracle-pagesizes.pl
+
+#################### Working on 5583 ####################
+
+PID: 5583
+CMD: asm_pmon_+asm1
+
+#################### Working on 6021 ####################
+
+PID: 6021
+CMD: ora_pmon_cdb1
+
+
+#################### Memory Info per PMON Process ####################
+
+PID: 6021   CMD: ora_pmon_cdb1
+
+   MemType: shared
+      pagesize: 4 kB
+        Size: 3,422,576,640
+        AnonHugePages: 0
+        Swap: 557,789,184
+        Rss: 4,648,960
+
+   MemType: heap
+      pagesize: 4 kB
+        Size: 473,858,048
+        AnonHugePages: 0
+        Swap: 3,506,176
+        Rss: 7,917,568
+
+
+PID: 5583   CMD: asm_pmon_+asm1
+
+   MemType: shared
+      pagesize: 4 kB
+        Size: 1,137,209,344
+        AnonHugePages: 0
+        Swap: 580,943,872
+        Rss: 14,974,976
+
+   MemType: heap
+      pagesize: 4 kB
+        Size: 457,011,200
+        AnonHugePages: 0
+        Swap: 2,797,568
+        Rss: 9,850,880
+```
+
+Note that even with HugePages enabled and used, there is shared memory that is non-SGA related.
+
+This database instance was started with `use_large_pages = ONLY`, so we know that all SGA memory is in HugePages.
+
+
+
 
 
 

@@ -16,7 +16,6 @@ use Data::Dumper;
 
 my $debug=0;
 my $newRecMarker='^([[:xdigit:]]{8,16})-([[:xdigit:]]{8,16})';
-my $htPageSize='2048\s+kB'; 
 
 # add here to attributes to capture
 my %attributes = (
@@ -42,7 +41,7 @@ my %memSizes = (
 
 );
 
-#my $htFlag='ht';
+my $sharedFlag='sh';
 my $key;
 
 =head1 %pageSizeMaps
@@ -51,11 +50,12 @@ my $key;
 
  my %pageSizeSums=();
 
- {4k}->{
-   count = integer,
-	totalsize = integer,
-	AnonHugePages = integer,
-   Swap = integer,
+ {PID}->{heap|shared}{pagesize}
+ {
+     count = integer,
+     totalsize = integer,
+     AnonHugePages = integer,
+     Swap = integer,
  }
 
 
@@ -142,6 +142,15 @@ foreach my $psLine ( qx(ps -eo pid,comm  | grep [p]mon) ) {
 
 		print "SMAPS Key: $key\n" if $debug;
 
+		
+		# look for 'sh' shared flag in VMFlags
+		my $memType='heap';
+		if ( grep(/$sharedFlag/, split(/\s+/,$smaps{$key}->{$attributes{FLAGS_NAME}})) ) {
+			$memType='shared';
+		}
+		print "MemType: $memType\n" if $debug;
+		print "   flags: $smaps{$key}->{$attributes{FLAGS_NAME}}\n" if $debug;
+
 		my ($currPageMeasure,$currenPageSize) = (split(/\s+/,$smaps{$key}->{$attributes{PAGESIZE_NAME}}))[1,2];
 		my $currentPageSizeKey = "$currPageMeasure $currenPageSize";
 
@@ -166,7 +175,7 @@ foreach my $psLine ( qx(ps -eo pid,comm  | grep [p]mon) ) {
 		foreach my $field ( @sumFields ) {
 
 			print "working on $field\n" if $debug;
-			$pageSizeSums{$pid}->{ $currentPageSizeKey }{$attributes{$field}} += $sumValues{$attributes{$field}};
+			$pageSizeSums{$pid}->{$memType}{ $currentPageSizeKey }{$attributes{$field}} += $sumValues{$attributes{$field}};
 			print "sumValue: $sumValues{$attributes{$field}}\n" if $debug;
 
 			#$attributes{SIZE_NAME} => $pageSizeSums{ $smaps{$key}->{$attributes{SIZE_NAME}} } += $smaps{$key}->{$attributes{SIZE_NAME}}
@@ -193,15 +202,21 @@ foreach my $pid  ( keys %procs ) {
 	my %pageInfo = %{$pageSizeSums{$pid}};
 
 	#print Dumper(\%pageInfo);
+	
+	foreach my $memType ( keys %pageInfo ) {
 
-	foreach my $pageSize ( keys %pageInfo ) {
+		print "   MemType: $memType\n";
 
-		print "   pagesize: $pageSize\n";
+		foreach my $pageSize ( keys %{$pageInfo{$memType}} ) {
 
-		foreach my $field ( @sumFields ) {
-			print "     $attributes{$field}: " . commify($pageInfo{$pageSize}->{$attributes{$field}}) . "\n";
+			print "      pagesize: $pageSize\n";
+
+			foreach my $field ( @sumFields ) {
+				print "        $attributes{$field}: " . commify($pageInfo{$memType}->{$pageSize}{$attributes{$field}}) . "\n";
+			}
+
 		}
-
+		print "\n";
 	}
 
 	print "\n";
