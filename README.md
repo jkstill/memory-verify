@@ -256,7 +256,56 @@ Note that even with HugePages enabled and used, there is shared memory that is n
 This database instance was started with `use_large_pages = ONLY`, so we know that all SGA memory is in HugePages.
 
 
+## Test HugePages
 
+The script `shm-hugepages.pl` can be used to see if HugePages are working:
+
+```text
+perldoc shm-hugepages.pl
+
+shm-hugepages.pl
+     This script attempts create shared memory segments using HugePages
+
+       [oracle]$ perl shm.pl
+       waiting for input
+
+     In another session
+
+       [root@boc-solver ~]# ipcs -m
+
+       ------ Shared Memory Segments --------
+       key        shmid      owner      perms      bytes      nattch     status
+       0x00000000 4          oracle     700        4294967296 0
+
+       [root@boc-solver ~]# grep Huge /proc/meminfo
+       AnonHugePages:         0 kB
+       HugePages_Total:    2048
+       HugePages_Free:     2047
+       HugePages_Rsvd:     2047
+       HugePages_Surp:        0
+       Hugepagesize:       2048 kB
+
+     Now release the memory by pressing ENTER
+
+       [oracle]$ perl shm.pl
+       waiting for input
+       [oracle]
+   
+     Check Memory again
+
+       [root]# ipcs -m
+
+       ------ Shared Memory Segments --------
+       key        shmid      owner      perms      bytes      nattch     status
+
+       [root]# grep Huge /proc/meminfo
+       AnonHugePages:         0 kB
+       HugePages_Total:    2048
+       HugePages_Free:     2048
+       HugePages_Rsvd:        0
+       HugePages_Surp:        0
+       Hugepagesize:       2048 kB
+```
 
 
 
